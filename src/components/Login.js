@@ -1,10 +1,79 @@
-import { useSearchParams } from "react-router-dom";
 import Header from "./Header";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { checkValidData } from "../utils/validate";
+import { auth } from "../utils/firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from "firebase/auth";
+import { addUser } from "../utils/userSlice";
+import { useDispatch } from "react-redux";
 
 function Login() {
   const [isSignInForm, setIsSignInForm] = useState(true);
+  const [errorMessage, setErrorMessage] = useState();
+  const dispatch = useDispatch();
+  const email = useRef(null);
+  const password = useRef(null);
+  const name = useRef();
 
+  const handleButtonClick = () => {
+    const message = checkValidData(email.current.value, password.current.value);
+    setErrorMessage(message);
+    if (message) return;
+
+    if (!isSignInForm) {
+      // Sign Up Logic
+      createUserWithEmailAndPassword(
+        auth,
+        email.current.value,
+        password.current.value
+      )
+        .then((userCredential) => {
+          const user = userCredential.user;
+          updateProfile(user, {
+            displayName: name.current.value,
+            photoURL: "USER_AVATAR",
+          })
+            .then(() => {
+              const { uid, email, displayName, photoURL } = auth.currentUser;
+              dispatch(
+                addUser({
+                  uid: uid,
+                  email: email,
+                  displayName: displayName,
+                  photoURL: photoURL,
+                })
+              );
+            })
+            .catch((error) => {
+              setErrorMessage(error.message);
+            });
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          setErrorMessage(errorCode + "-" + errorMessage);
+        });
+    } else {
+      // Sign In Logic
+      signInWithEmailAndPassword(
+        auth,
+        email.current.value,
+        password.current.value
+      )
+        .then((userCredential) => {
+          // Signed in
+          const user = userCredential.user;
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          setErrorMessage(errorCode + "-" + errorMessage);
+        });
+    }
+  };
   const handleSignInForm = () => {
     setIsSignInForm(!isSignInForm);
   };
@@ -18,35 +87,44 @@ function Login() {
         />
       </div>
 
-      <form className="bg-black absolute my-36 w-4/12 mx-auto left-0 right-0 text-white p-20 rounded-lg opacity-90">
+      <form
+        onSubmit={(e) => e.preventDefault()}
+        className="bg-black absolute my-36 w-4/12 mx-auto left-0 right-0 text-white p-20 rounded-lg opacity-90"
+      >
         <h1 className="font-bold text-3xl my-4 ml-1">
           {isSignInForm ? "Sign In" : "Sign Up"}
         </h1>
         {!isSignInForm && (
           <input
+            ref={name}
             type="text"
             placeholder="Full Name"
             className="p-4 m-2  w-full rounded-lg bg-gray-700"
           />
         )}
         <input
+          ref={email}
           type="text"
           placeholder="Email Address"
           className="p-4 m-2 w-full rounded-lg bg-gray-700"
         />
         <input
+          ref={password}
           type="password"
           placeholder="Password"
           className="p-4 m-2  w-full rounded-lg bg-gray-700"
         />
-        <button className="p-2 m-2 bg-red-700 w-full rounded-lg">
+        <p className="p-2 my-2 text-red-800 font-bold">{errorMessage}</p>
+        <button
+          className="p-2 m-2 bg-red-700 w-full rounded-lg"
+          onClick={handleButtonClick}
+        >
           {isSignInForm ? "Sign In" : "Sign Up"}
         </button>
 
-        <p className="my-8 ml-2">
+        <div className="my-8 ml-2">
           {isSignInForm ? (
-            <p>
-              {" "}
+            <div>
               <span className="opacity-50">New to NetFlix ? </span>
               <span
                 className="font-bold cursor-pointer"
@@ -54,7 +132,7 @@ function Login() {
               >
                 Sign up Now
               </span>
-            </p>
+            </div>
           ) : (
             <p>
               <span className="opacity-50">Already Registered ? </span>
@@ -66,7 +144,7 @@ function Login() {
               </span>
             </p>
           )}
-        </p>
+        </div>
       </form>
     </div>
   );
